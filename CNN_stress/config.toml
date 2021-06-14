@@ -1,0 +1,19 @@
+[load]
+model_path = "imagenet"
+base_model = "ResNet50V2"
+
+[save]
+model_path = ".Models/resnet50_imagenet"
+
+[training]
+data_images_folder = "/home/users/ucadatalab_group/javierj/SHARED/baby-stress"
+labels_names = "inferred"
+n_labels = 2
+color_mode= "rgb"
+image_size = [224, 224]
+validation_split = 0.2
+shuffle = true
+batch_size = 32
+optimizer = "adam"
+epochs = 10
+metrics = ["acc", "precision", "recall", "f1"]
