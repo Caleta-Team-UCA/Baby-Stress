@@ -19,6 +19,10 @@ from keras.backend import epsilon
 from keras.layers import Dense
 from keras.models import Sequential
 
+import tensorflow as tf
+
+tf.config.run_functions_eagerly(True)
+
 import typer
 
 SEED = 1234
