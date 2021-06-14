@@ -6,9 +6,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.9",
     setup_requires=["setuptools_scm"],
-    install_requires=[
-        "keras"
-    ],
+    install_requires=["keras", "tensorflow>=2.5.0", "toml>=0.10.2", "typer>=0.3.2"],
     extras_require={
         "dev": [
             "pip-tools",
