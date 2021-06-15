@@ -1,6 +1,6 @@
 [load]
 model_path = "imagenet"
-base_model = "ResNet50V2"
+base_model = "ResNet50"
 
 [save]
 model_path = ".Models/resnet50_imagenet"
