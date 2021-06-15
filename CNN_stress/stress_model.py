@@ -2,24 +2,36 @@ import toml
 from pathlib import Path
 from typing import Optional, Union, Iterable
 
-from keras.applications.resnet import (
+from tensorflow.keras.applications.resnet import (
     ResNet50,
     ResNet101,
     ResNet152,
 )
 
-from keras.applications.resnet_v2 import (
+from tensorflow.keras.applications.resnet_v2 import (
     ResNet50V2,
     ResNet101V2,
     ResNet152V2,
 )
-from keras.preprocessing.image import image_dataset_from_directory
-from keras.metrics import BinaryAccuracy, CategoricalAccuracy, Precision, Recall
-from keras.backend import epsilon
-from keras.layers import Dense
-from keras.models import Sequential
+from tensorflow.keras.preprocessing import image_dataset_from_directory
+from tensorflow.keras.metrics import (
+    BinaryAccuracy,
+    CategoricalAccuracy,
+    Precision,
+    Recall,
+)
+from tensorflow.keras.backend import epsilon
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.models import Sequential
 
 import tensorflow as tf
+
+from tensorflow.python.keras import backend as K
+
+config = tf.compat.v1.ConfigProto()
+config.gpu_options.allow_growth = True
+session = tf.compat.v1.InteractiveSession(config=config)
+K.set_session(tf.compat.v1.Session(config=config))
 
 tf.config.run_functions_eagerly(True)
 
