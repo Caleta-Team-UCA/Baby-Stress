@@ -23,6 +23,7 @@ from tensorflow.keras.metrics import (
 from tensorflow.keras.backend import epsilon
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.callbacks import EarlyStopping
 
 import tensorflow as tf
 
@@ -93,7 +94,7 @@ class CNN:
         batch_size: int = 32,
         optimizer: str = "adam",
         epochs: int = 10,
-        metrics: Iterable[str] = ("acc", "precision", "recall", "f1"),
+        metrics: Iterable[str] = ("f1","acc", "precision", "recall"),
     ):
         if n_labels is None:
             assert (
@@ -155,7 +156,14 @@ class CNN:
             optimizer=optimizer, loss=loss_function, metrics=metrics_list
         )
 
-        self.MODEL.fit(train_dataset, validation_data=validation_dataset, epochs=epochs)
+        early_stopping_monitor = EarlyStopping(
+            monitor=f"val_{metrics_list[0]}",
+            patience=3,
+            mode='max',
+            restore_best_weights=True
+        )
+
+        self.MODEL.fit(train_dataset, validation_data=validation_dataset, epochs=epochs, callbacks = [early_stopping_monitor])
 
     def save(self, model_path: Union[str, Path]):
         """Save the architecture and the weights of the model.
