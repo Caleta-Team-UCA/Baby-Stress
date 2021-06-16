@@ -102,18 +102,18 @@ class Main(DepthAI):
             self.start = False
             self.classes = [ "non_stressed", "stressed" ]
             self.current_class = 0
-            os.system(f"sed -i '/^{self.prefix}/d' data.txt")
+            os.system(f"sed -i '/^{self.prefix}/d' data.csv")
             for label in self.classes:
                 os.system(f"rm -r dataset/{label}/{self.prefix}* || true")
                 (Path(__file__).parent / Path(f'dataset/{label}')).mkdir(parents=True, exist_ok=True)
             self.current_frame = 0
-            self.text_file = open("data.txt", "a+")
+            self.text_file = open("data.csv", "a+")
         if play:
             self.annotate = False
             self.start = False
             self.classes = [ "non_stressed", "stressed" ]
             self.play = True
-            with open("data.txt", "r") as f:
+            with open("data.csv", "r") as f:
                 self.saved_text_file = [ line.rstrip() for line in f if line.startswith(self.prefix) ]
             self.current_annotation_idx = 0
             self.current_annotation = [ int(i[-6:]) for i in self.saved_text_file[self.current_annotation_idx].split(",") ]
