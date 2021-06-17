@@ -1,9 +1,9 @@
 [load]
 model_path = "imagenet"
-base_model = "ResNet50"
+base_model = "ResNet50V2"
 
 [save]
-model_path = ".Models/resnet50_imagenet_2"
+model_path = ".Models/resnet_imagenet.h5"
 
 [training]
 train_images_folder = "/home/users/ucadatalab_group/javierj/SHARED/baby-stress/training_data/train"
@@ -17,3 +17,6 @@ batch_size = 32
 optimizer = "adam"
 epochs = 10
 metrics = ["F1","binary_accuracy", "precision", "recall"]
+early_stopping_metric = "val_F1"
+early_stopping_mode = "max"
+early_stopping_patience = 5
