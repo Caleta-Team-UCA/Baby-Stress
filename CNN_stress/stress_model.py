@@ -1,6 +1,7 @@
 import toml
 from pathlib import Path
 from typing import Optional, Union, Iterable
+import os
 
 from tensorflow.keras.applications.resnet import (
     ResNet50,
@@ -170,6 +171,9 @@ class CNN:
         model_path : Union[str, Path]
             Path to the folder where the model will be saved.
         """
+        if not os.path.exists(model_path):
+            os.mkdir(model_path)
+
         model_json = self.MODEL.to_json()
 
         with open(f"{model_path}/model_arquitecture.json", "w") as json_file:
