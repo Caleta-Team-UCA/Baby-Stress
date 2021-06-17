@@ -14,6 +14,9 @@ from tensorflow.keras.applications.resnet_v2 import (
     ResNet101V2,
     ResNet152V2,
 )
+
+from tensorflow.keras.applications.mobilenet import MobileNet
+
 from tensorflow.keras.preprocessing import image_dataset_from_directory
 from tensorflow.keras.metrics import (
     BinaryAccuracy,
@@ -23,7 +26,7 @@ from tensorflow.keras.metrics import (
 )
 from tensorflow.keras.backend import epsilon
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.callbacks import EarlyStopping
 
 import tensorflow as tf
@@ -46,6 +49,7 @@ MODEL_TYPES = {
     "ResNet50V2": ResNet50V2,
     "ResNet101V2": ResNet101V2,
     "ResNet152V2": ResNet152V2,
+    "MobileNet": MobileNet,
 }
 
 
@@ -70,7 +74,7 @@ class CNN:
         Parameters
         ----------
         model_path : Optional[Union[str, Path]]
-            Path to model save folder, by default None
+            Path to model, by default None
             If it is `None`, a `ResNet50v2` with weights of `imagenet` is loaded.
         base_model : Optional[str], optional
             Base model to load weights on it, by default None.
@@ -94,6 +98,9 @@ class CNN:
         optimizer: str = "adam",
         epochs: int = 10,
         metrics: Iterable[str] = ("F1", "binary_accuracy", "precision", "recall"),
+        early_stopping_metric: str = "val_F1",
+        early_stopping_patience: str = 5,
+        early_stopping_mode: str = "max",
     ):
         if n_labels is None:
             assert (
@@ -150,9 +157,9 @@ class CNN:
         )
 
         early_stopping_monitor = EarlyStopping(
-            monitor=f"val_{metrics[0]}",
-            patience=3,
-            mode="max",
+            monitor=early_stopping_metric,
+            patience=early_stopping_patience,
+            mode=early_stopping_mode,
             restore_best_weights=True,
         )
 
@@ -171,15 +178,8 @@ class CNN:
         model_path : Union[str, Path]
             Path to the folder where the model will be saved.
         """
-        if not os.path.exists(model_path):
-            os.mkdir(model_path)
 
-        model_json = self.MODEL.to_json()
-
-        with open(f"{model_path}/model_arquitecture.json", "w") as json_file:
-            json_file.write(model_json)
-
-        self.MODEL.save_weights(f"{model_path}/model_weights.h5")
+        self.MODEL.save(model_path)
 
     def load(
         self,
@@ -191,22 +191,19 @@ class CNN:
         Parameters
         ----------
         model_path : Union[str, Path]
-            Path to the folder where the model is saved.
+            Path to the model saved.
         base_model : Optional[str], optional
             Base model to load weights on it, by default None.
             If it is `None`, a local saved model will be loaded using `model_path`.
         """
-        self.MODEL = Sequential()
-        if base_model is None:
-            with open(f"{model_path}/model_arquitecture.json", "r") as f:
-                model = f.read()
 
-            model.load_weights(f"{model_path}/model_weights.h5")
+        if base_model is None:
+            self.MODEL = load_model(model_path)
 
         else:
+            self.MODEL = Sequential()
             model = MODEL_TYPES[base_model](weights=model_path)
-
-        self.MODEL.add(model)
+            self.MODEL.add(model)
 
 
 def main(config_path: Optional[str] = "./CNN_stress/config.toml"):
