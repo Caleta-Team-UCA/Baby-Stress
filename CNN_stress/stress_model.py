@@ -38,8 +38,6 @@ tf.config.run_functions_eagerly(True)
 
 import typer
 
-SEED = 1234
-
 MODEL_TYPES = {
     "ResNet50": ResNet50,
     "ResNet101": ResNet101,
@@ -84,17 +82,17 @@ class CNN:
 
     def train(
         self,
-        data_images_folder: Union[Path, str],
+        train_images_folder: Union[Path, str],
+        val_images_folder: Union[Path, str],
         labels_names: Union[str, Iterable[str]] = "inferred",
         n_labels: Optional[int] = None,
         color_mode: str = "rgb",
         image_size: Iterable[int] = (256, 256),
         shuffle: bool = True,
-        validation_split: float = 0.2,
         batch_size: int = 32,
         optimizer: str = "adam",
         epochs: int = 10,
-        metrics: Iterable[str] = ("f1","acc", "precision", "recall"),
+        metrics: Iterable[str] = ("F1", "binary_accuracy", "precision", "recall"),
     ):
         if n_labels is None:
             assert (
@@ -112,35 +110,29 @@ class CNN:
             self.MODEL.add(Dense(1, activation="sigmoid"))
 
         train_dataset = image_dataset_from_directory(
-            data_images_folder,
+            train_images_folder,
             labels=labels_names,
             batch_size=batch_size,
             color_mode=color_mode,
             image_size=image_size,
             shuffle=shuffle,
             label_mode=label_mode,
-            validation_split=validation_split,
-            subset="training",
-            seed=SEED,
         )
 
         validation_dataset = image_dataset_from_directory(
-            data_images_folder,
+            val_images_folder,
             labels=labels_names,
             batch_size=batch_size,
             color_mode=color_mode,
             image_size=image_size,
             shuffle=shuffle,
             label_mode=label_mode,
-            validation_split=validation_split,
-            subset="validation",
-            seed=SEED,
         )
 
         metrics_list = []
 
         for m in metrics:
-            if m == "acc":
+            if m == "binary_accuracy":
                 if label_mode == "binary":
                     metrics_list.append(BinaryAccuracy())
                 else:
@@ -149,7 +141,7 @@ class CNN:
                 metrics_list.append(Precision())
             elif m == "recall":
                 metrics_list.append(Recall())
-            elif m == "f1":
+            elif m == "F1":
                 metrics_list.append(F1)
 
         self.MODEL.compile(
@@ -157,13 +149,18 @@ class CNN:
         )
 
         early_stopping_monitor = EarlyStopping(
-            monitor=f"val_{metrics_list[0]}",
+            monitor=f"val_{metrics[0]}",
             patience=3,
-            mode='max',
-            restore_best_weights=True
+            mode="max",
+            restore_best_weights=True,
         )
 
-        self.MODEL.fit(train_dataset, validation_data=validation_dataset, epochs=epochs, callbacks = [early_stopping_monitor])
+        self.MODEL.fit(
+            train_dataset,
+            validation_data=validation_dataset,
+            epochs=epochs,
+            callbacks=[early_stopping_monitor],
+        )
 
     def save(self, model_path: Union[str, Path]):
         """Save the architecture and the weights of the model.
