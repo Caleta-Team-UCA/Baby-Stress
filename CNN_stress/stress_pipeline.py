@@ -27,8 +27,9 @@ def define_pipeline(face_detection_blob_path: str, stress_classifier_blob_path: 
 
     # Linking
     input.out.link(face_detection.input)
-    face_detection.out.link(image_manager.inputImage)
-    image_manager.out.link(stress_classifier.input)
+    # face_detection.out.link(image_manager.inputImage)
+    face_detection.out.link(stress_classifier.input)
+    # image_manager.out.link(stress_classifier.input)
     stress_classifier.out.link(output.input)
 
     return pipeline
