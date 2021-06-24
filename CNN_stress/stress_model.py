@@ -214,50 +214,51 @@ class CNN:
             model = MODEL_TYPES[base_model](weights=model_path)
             self.MODEL.add(model)
 
-        def to_pb(self, path_out_folder):
-            # path of the directory where you want to save your model
+    def to_pb(self, path_out_folder):
+        # path of the directory where you want to save your model
 
-            frozen_graph_filename = "frozen_graph"
-            model = load_model(model_path, custom_objects={"F1": F1})
-            full_model = tf.function(lambda x: model(x))
-            full_model = full_model.get_concrete_function(
-                tf.TensorSpec(model.inputs[0].shape, model.inputs[0].dtype)
-            )  # Get frozen ConcreteFunction
-            frozen_func = convert_variables_to_constants_v2(full_model)
-            frozen_func.graph.as_graph_def()
-            layers = [op.name for op in frozen_func.graph.get_operations()]
-            print("-" * 60)
-            print("Frozen model layers: ")
+        frozen_graph_filename = "frozen_graph"
+        model = self.MODEL
+        full_model = tf.function(lambda x: model(x))
+        full_model = full_model.get_concrete_function(
+            tf.TensorSpec(model.inputs[0].shape, model.inputs[0].dtype)
+        )  # Get frozen ConcreteFunction
+        frozen_func = convert_variables_to_constants_v2(full_model)
+        frozen_func.graph.as_graph_def()
+        layers = [op.name for op in frozen_func.graph.get_operations()]
+        print("-" * 60)
+        print("Frozen model layers: ")
 
-            for layer in layers:
-                print(layer)
+        for layer in layers:
+            print(layer)
 
-            print("-" * 60)
-            print("Frozen model inputs: ")
-            print(frozen_func.inputs)
-            print("Frozen model outputs: ")
-            print(frozen_func.outputs)  # Save frozen graph to disk
-            tf.io.write_graph(
-                graph_or_graph_def=frozen_func.graph,
-                logdir=path_out_folder,
-                name=f"{frozen_graph_filename}.pb",
-                as_text=False,
-            )
+        print("-" * 60)
+        print("Frozen model inputs: ")
+        print(frozen_func.inputs)
+        print("Frozen model outputs: ")
+        print(frozen_func.outputs)  # Save frozen graph to disk
+        tf.io.write_graph(
+            graph_or_graph_def=frozen_func.graph,
+            logdir=path_out_folder,
+            name=f"{frozen_graph_filename}.pb",
+            as_text=False,
+        )
 
-        def to_blob(self, path_out_folder):
-            self.to_pb(path_out_folder)
+    def to_blob(self, path_out_folder):
+        self.to_pb(path_out_folder)
 
-            blob_path = blobconverter.from_tf(
-                frozen_pb=f"{path_out_folder}/frozen_graph.pb",
-                data_type="FP16",
-                shaves=5,
-                optimizer_params=[
-                    "--reverse_input_channels",
-                    "--input_shape=[1,224,224,3]",
-                ],
-            )
+        blob_path = blobconverter.from_tf(
+            frozen_pb=f"{path_out_folder}/frozen_graph.pb",
+            data_type="FP16",
+            shaves=5,
+            version = blobconverter.Versions.v2020_1,
+            optimizer_params=[
+                "--reverse_input_channels",
+                "--input_shape=[1,224,224,3]",
+            ],
+        )
 
-            shutil.move(blob_path, f"{path_out_folder}/depthai_model.blob")
+        shutil.move(blob_path, f"{path_out_folder}/depthai_model.blob")
 
 
 def main(config_path: Optional[str] = "./CNN_stress/config.toml"):
