@@ -76,19 +76,25 @@ from depthai_utils import *
 #
 # Running script:
 # python main.py -vid videos/22-center-1.mp4
+#
+# TO-DOs:
+# - poner por pantalla validación entre lo que muestra el vídeo y lo que se anotó
+# - poner el porcentaje por pantalla
+# - añadir ruta al modelo para poder elegirlo
 
 class Main(DepthAI):
     def __init__(self, file=None, camera=False, record=False, annotate=False, play=False):
-        self.filename = os.path.splitext(os.path.basename(file))[0]
-        match = re.match(r"([0-9]+)\-([a-z]+)\-([0-9]+)", self.filename, re.I)
-        try:
-            if match:
-                items = match.groups()
-                self.prefix = "{:02d}".format(int(items[0])) + "{:02d}".format(int(items[2]))
-            else:
+        if not camera:
+            self.filename = os.path.splitext(os.path.basename(file))[0]
+            match = re.match(r"([0-9]+)\-([a-z]+)\-([0-9]+)", self.filename, re.I)
+            try:
+                if match:
+                    items = match.groups()
+                    self.prefix = "{:02d}".format(int(items[0])) + "{:02d}".format(int(items[2]))
+                else:
+                    raise ValueError("Video format must be number-string-number")
+            except:
                 raise ValueError("Video format must be number-string-number")
-        except:
-            raise ValueError("Video format must be number-string-number")
 
         self.cam_size = (720, 1280)
         super(Main, self).__init__(file, camera)
@@ -138,7 +144,7 @@ class Main(DepthAI):
 
     def create_nns(self):
         self.create_nn("models/face-detection-retail-0004.blob", "face")
-        self.create_nn("models/emotions-recognition-retail-0003.blob", "emo")
+        self.create_nn("models/stress_classifier_v2.blob", "emo")
 
     def start_nns(self):
         self.face_in = self.device.getInputQueue("face_in")
@@ -195,23 +201,24 @@ class Main(DepthAI):
     def run_emo(self):
         for i in range(self.face_num):
             emo_frame = self.emo_frame.get()
-            emo = ["neutral", "happy", "sad", "surprise", "anger"]
+            emo = ["non-stress", "stress", "sad", "surprise", "anger"]
             nn_data = run_nn(
                 self.emo_in,
                 self.emo_nn,
-                {"prob": to_planar(emo_frame, (64, 64))[0]},
+                {"prob": to_planar(emo_frame, (224, 224))[0]},
             )
             if nn_data is None:
                 return
             out = to_nn_result(nn_data)
             # print(out)
-            emo_r = emo[out.argmax()]
+            emo_r = emo[out[0] > 0.5]
 
             self.last_frames.append(emo_r)
             if len(self.last_frames) > 50:
                 self.last_frames.popleft()
             emo_count = [ self.last_frames.count(emo[i]) for i in range(5) ]
             top_emo = emo[emo_count.index(max(emo_count))]
+            top_emo = emo_r
 
             self.put_text(
                 top_emo,
@@ -265,7 +272,7 @@ class Main(DepthAI):
         )
 
     def __del__(self):
-        if self.output is not None:
+        if hasattr(self, 'output') and self.output is not None:
             self.output.release()
         if hasattr(self, 'annotate'):
             if self.annotate and self.text_file is not None:
