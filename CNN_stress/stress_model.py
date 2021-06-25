@@ -1,8 +1,11 @@
 import toml
 from pathlib import Path
-from typing import Optional, Union, Iterable
+from typing import Callable, Optional, Union, Iterable
 import blobconverter
 import shutil
+import json
+
+import wandb
 
 from tensorflow.keras.applications.resnet import (
     ResNet50,
@@ -27,8 +30,9 @@ from tensorflow.keras.metrics import (
 )
 from tensorflow.keras.backend import epsilon
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import Sequential, load_model, clone_model
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam, SGD, Adamax, RMSprop
 
 from tensorflow.keras.models import load_model
 import typer
@@ -99,17 +103,19 @@ class CNN:
         train_images_folder: Union[Path, str],
         val_images_folder: Union[Path, str],
         labels_names: Union[str, Iterable[str]] = "inferred",
-        n_labels: Optional[int] = None,
+        n_labels: Optional[int] = 2,
         color_mode: str = "rgb",
-        image_size: Iterable[int] = (256, 256),
+        image_size: Iterable[int] = (224, 224),
         shuffle: bool = True,
         batch_size: int = 32,
-        optimizer: str = "adam",
+        optimizer_name: str = "Adam",
+        learning_rate: float = 1e-5,
         epochs: int = 10,
         metrics: Iterable[str] = ("F1", "binary_accuracy", "precision", "recall"),
         early_stopping_metric: str = "val_F1",
         early_stopping_patience: str = 5,
         early_stopping_mode: str = "max",
+        callbacks:list[Callable] = []
     ):
         if n_labels is None:
             assert (
@@ -161,6 +167,24 @@ class CNN:
             elif m == "F1":
                 metrics_list.append(F1)
 
+        if optimizer_name == "Adam":
+            optimizer = Adam(
+                learning_rate=learning_rate, 
+            )
+        elif optimizer_name == "SGD":
+            optimizer = SGD(
+                learning_rate=learning_rate, 
+            )
+        elif optimizer_name == "Adamax":
+            optimizer = Adamax(
+                learning_rate=learning_rate, 
+            )
+        elif optimizer_name == "RMSprop":
+            optimizer = RMSprop(
+                learning_rate=learning_rate, 
+            )
+
+
         self.MODEL.compile(
             optimizer=optimizer, loss=loss_function, metrics=metrics_list
         )
@@ -172,13 +196,42 @@ class CNN:
             restore_best_weights=True,
         )
 
-        self.MODEL.fit(
+        callbacks.append(early_stopping_monitor)
+
+        training_history = self.MODEL.fit(
             train_dataset,
             validation_data=validation_dataset,
             epochs=epochs,
-            callbacks=[early_stopping_monitor],
+            callbacks=[callbacks],
         )
 
+    def _train_wandb(self):
+        aux_model = clone_model(self.MODEL)
+
+        run = wandb.init(name = f"run_{self.run_number}")
+        config = dict(run.config)
+
+        keras_callback = wandb.keras.WandbCallback()
+
+        self.train(callbacks=[keras_callback], **config)
+
+        self.save(f"/home/users/ucadatalab_group/javierj/Baby-Stress/hyperparams_search_results/{run.group}/{run.name}")
+        
+        self.MODEL = aux_model
+        
+        self.run_number += 1
+
+    def hiperparameters_search_wandb(self,
+        wandb_project:str,
+        number_runs:int,
+        hiperparams_search_config:dict[str,str]
+    ):
+        self.run_number = 0
+
+        wandb.login()       
+        sweep_id = wandb.sweep(hiperparams_search_config,project=wandb_project)
+        wandb.agent(sweep_id=sweep_id, project = wandb_project,function=self._train_wandb, count = number_runs)
+ 
     def save(self, model_path: Union[str, Path]):
         """Save the architecture and the weights of the model.
 
@@ -265,10 +318,18 @@ def main(config_path: Optional[str] = "./CNN_stress/config.toml"):
 
     config_dict = toml.load(config_path)
 
+    hyperparam_path = config_dict["wandb"]["hyperparam_search_config_path"]
+
+    with open(hyperparam_path,"r") as f:
+        hyperparam_config = json.load(f)
+
     model = CNN(**config_dict["load"])
-    model.train(**config_dict["training"])
-    model.save(**config_dict["save"])
-    model.load(config_dict["save"]["model_path"], base_model=None)
+    model.hiperparameters_search_wandb("Baby_stress_CNN",5,hyperparam_config)
+
+    # model = CNN(**config_dict["load"])
+    # model.train(**config_dict["training"])
+    # model.save(**config_dict["save"])
+    # model.load(config_dict["save"]["model_path"], base_model=None)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,38 @@
+{
+    "name": "Resnet",
+    "method": "bayes",
+    "metric":
+    {
+        "name": "val_F1",
+        "goal": "maximize"
+    },              
+    "parameters": 
+    {
+        "train_images_folder":
+        {
+            "values":["/home/users/ucadatalab_group/javierj/SHARED/baby-stress/training_data/train"]
+        },
+        "val_images_folder":
+        {
+            "values":["/home/users/ucadatalab_group/javierj/SHARED/baby-stress/training_data/validation"]    
+        },
+        "learning_rate": 
+        {
+            "min": 1e-5,
+            "max": 5e-5
+        },
+        "batch_size":  
+        {
+            "values":[8,16,32,64]
+        },
+        "epochs":
+        {
+            "min":3,
+            "max":10
+        },
+        "optimizer_name":
+        {
+            "values":["Adam","SGD","Adamax","RMSprop"]
+        }
+    }
+}

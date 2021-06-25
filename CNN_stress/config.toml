@@ -14,9 +14,13 @@ color_mode= "rgb"
 image_size = [224, 224]
 shuffle = true
 batch_size = 32
-optimizer = "adam"
+learning_rate = 0.00001
+optimizer_name = "Adam"
 epochs = 10
 metrics = ["F1","binary_accuracy", "precision", "recall"]
 early_stopping_metric = "val_F1"
 early_stopping_mode = "max"
 early_stopping_patience = 5
+
+[wandb]
+hyperparam_search_config_path = "/home/users/ucadatalab_group/javierj/Baby-Stress/CNN_stress/hyperparam_search_config.json"
