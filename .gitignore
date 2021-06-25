@@ -27,11 +27,11 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# VS Code
+# other
 .vscode/
-
-# Models
+wandb/
 .Models/
+hyperparams_search_results/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
