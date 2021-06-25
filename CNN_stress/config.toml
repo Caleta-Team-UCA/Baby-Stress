@@ -24,3 +24,4 @@ early_stopping_patience = 5
 
 [wandb]
 hyperparam_search_config_path = "/home/users/ucadatalab_group/javierj/Baby-Stress/CNN_stress/hyperparam_search_config.json"
+save_dir = "/home/users/ucadatalab_group/javierj/Baby-Stress/hyperparams_search_results/Resnet"

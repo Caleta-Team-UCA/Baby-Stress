@@ -115,7 +115,7 @@ class CNN:
         early_stopping_metric: str = "val_F1",
         early_stopping_patience: str = 5,
         early_stopping_mode: str = "max",
-        callbacks:list[Callable] = []
+        callbacks: list[Callable] = [],
     ):
         if n_labels is None:
             assert (
@@ -169,21 +169,20 @@ class CNN:
 
         if optimizer_name == "Adam":
             optimizer = Adam(
-                learning_rate=learning_rate, 
+                learning_rate=learning_rate,
             )
         elif optimizer_name == "SGD":
             optimizer = SGD(
-                learning_rate=learning_rate, 
+                learning_rate=learning_rate,
             )
         elif optimizer_name == "Adamax":
             optimizer = Adamax(
-                learning_rate=learning_rate, 
+                learning_rate=learning_rate,
             )
         elif optimizer_name == "RMSprop":
             optimizer = RMSprop(
-                learning_rate=learning_rate, 
+                learning_rate=learning_rate,
             )
-
 
         self.MODEL.compile(
             optimizer=optimizer, loss=loss_function, metrics=metrics_list
@@ -208,30 +207,39 @@ class CNN:
     def _train_wandb(self):
         aux_model = clone_model(self.MODEL)
 
-        run = wandb.init(name = f"run_{self.run_number}")
+        run = wandb.init(name=f"run_{self.run_number}")
         config = dict(run.config)
 
         keras_callback = wandb.keras.WandbCallback()
 
         self.train(callbacks=[keras_callback], **config)
 
-        self.save(f"/home/users/ucadatalab_group/javierj/Baby-Stress/hyperparams_search_results/{run.group}/{run.name}")
-        
+        self.save(f"{self.wandb_runs_dir}/{run.name}")
+
         self.MODEL = aux_model
-        
+
         self.run_number += 1
 
-    def hiperparameters_search_wandb(self,
-        wandb_project:str,
-        number_runs:int,
-        hiperparams_search_config:dict[str,str]
+    def hiperparameters_search_wandb(
+        self,
+        wandb_project: str,
+        number_runs: int,
+        wandb_runs_dir: str,
+        hiperparams_search_config: dict[str, str],
     ):
         self.run_number = 0
 
-        wandb.login()       
-        sweep_id = wandb.sweep(hiperparams_search_config,project=wandb_project)
-        wandb.agent(sweep_id=sweep_id, project = wandb_project,function=self._train_wandb, count = number_runs)
- 
+        self.wandb_runs_dir = wandb_runs_dir
+
+        wandb.login()
+        sweep_id = wandb.sweep(hiperparams_search_config, project=wandb_project)
+        wandb.agent(
+            sweep_id=sweep_id,
+            project=wandb_project,
+            function=self._train_wandb,
+            count=number_runs,
+        )
+
     def save(self, model_path: Union[str, Path]):
         """Save the architecture and the weights of the model.
 
@@ -304,7 +312,7 @@ class CNN:
             frozen_pb=f"{path_out_folder}/frozen_graph.pb",
             data_type="FP16",
             shaves=5,
-            version = blobconverter.Versions.v2020_1,
+            version=blobconverter.Versions.v2020_1,
             optimizer_params=[
                 "--reverse_input_channels",
                 "--input_shape=[1,224,224,3]",
@@ -320,11 +328,13 @@ def main(config_path: Optional[str] = "./CNN_stress/config.toml"):
 
     hyperparam_path = config_dict["wandb"]["hyperparam_search_config_path"]
 
-    with open(hyperparam_path,"r") as f:
+    with open(hyperparam_path, "r") as f:
         hyperparam_config = json.load(f)
 
     model = CNN(**config_dict["load"])
-    model.hiperparameters_search_wandb("Baby_stress_CNN",5,hyperparam_config)
+    model.hiperparameters_search_wandb(
+        "Baby_stress_CNN", 20, config_dict["wandb"]["save_dir"], hyperparam_config
+    )
 
     # model = CNN(**config_dict["load"])
     # model.train(**config_dict["training"])
