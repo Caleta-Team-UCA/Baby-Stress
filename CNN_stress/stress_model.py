@@ -123,14 +123,20 @@ class CNN:
             ), f"If labels are inferred `n_labels` must be passed."
             n_labels = len(labels_names)
 
+        layer_names = [layer.name for layer in self.MODEL.layers]
+
         if n_labels > 2:
             label_mode = "int"
             loss_function = "sparse_categorical_crossentropy"
-            self.MODEL.add(Dense(n_labels, activation="softmax"))
+            if "final_layer" not in layer_names:
+                self.MODEL.add(
+                    Dense(n_labels, activation="softmax", name="final_layer")
+                )
         else:
             label_mode = "binary"
             loss_function = "binary_crossentropy"
-            self.MODEL.add(Dense(1, activation="sigmoid"))
+            if "final_layer" not in layer_names:
+                self.MODEL.add(Dense(1, activation="sigmoid", name="final_layer"))
 
         train_dataset = image_dataset_from_directory(
             train_images_folder,
@@ -212,11 +218,18 @@ class CNN:
 
         keras_callback = wandb.keras.WandbCallback()
 
-        self.train(callbacks=[keras_callback], **config)
+        self.train(
+            train_images_folder=self.train_images_folder,
+            val_images_folder=self.val_images_folder,
+            callbacks=[keras_callback],
+            **config,
+        )
 
-        self.save(f"{self.wandb_runs_dir}/{run.name}")
+        self.save(f"{self.wandb_runs_dir}/{run.name}.h5")
 
         self.MODEL = aux_model
+
+        shutil.rmtree("/home/users/ucadatalab_group/javierj/Baby-Stress/wandb")
 
         self.run_number += 1
 
@@ -226,10 +239,15 @@ class CNN:
         number_runs: int,
         wandb_runs_dir: str,
         hiperparams_search_config: dict[str, str],
+        train_images_folder: Union[Path, str],
+        val_images_folder: Union[Path, str],
     ):
         self.run_number = 0
 
         self.wandb_runs_dir = wandb_runs_dir
+
+        self.train_images_folder = train_images_folder
+        self.val_images_folder = val_images_folder
 
         wandb.login()
         sweep_id = wandb.sweep(hiperparams_search_config, project=wandb_project)
@@ -241,12 +259,12 @@ class CNN:
         )
 
     def save(self, model_path: Union[str, Path]):
-        """Save the architecture and the weights of the model.
+        """Save the weights of the model.
 
         Parameters
         ----------
         model_path : Union[str, Path]
-            Path to the folder where the model will be saved.
+            Path to the file where the model will be saved. Must be `.h5` extension.
         """
 
         self.MODEL.save(model_path)
@@ -254,7 +272,7 @@ class CNN:
     def load(
         self,
         model_path: Union[str, Path] = "imagenet",
-        base_model: Optional[str] = "ResNet50v2",
+        base_model: Optional[str] = "ResNet50V2",
     ):
         """Load the architecture and the weights of a model.
 
@@ -333,7 +351,12 @@ def main(config_path: Optional[str] = "./CNN_stress/config.toml"):
 
     model = CNN(**config_dict["load"])
     model.hiperparameters_search_wandb(
-        "Baby_stress_CNN", 20, config_dict["wandb"]["save_dir"], hyperparam_config
+        "Baby_stress_CNN",
+        20,
+        config_dict["wandb"]["save_dir"],
+        hyperparam_config,
+        config_dict["wandb"]["train_images_folder"],
+        config_dict["wandb"]["val_images_folder"],
     )
 
     # model = CNN(**config_dict["load"])
