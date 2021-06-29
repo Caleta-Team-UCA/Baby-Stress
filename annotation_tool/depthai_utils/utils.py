@@ -71,12 +71,25 @@ parser.add_argument(
     help="Annotate",
 )
 
-
 parser.add_argument(
     "-p",
     "--play",
     action="store_true",
     help="Play annotations",
+)
+
+parser.add_argument(
+    "-c",
+    "--check",
+    action="store_true",
+    help="Check annotations",
+)
+
+parser.add_argument(
+    "-m",
+    "--model",
+    type=str,
+    help="Set model path",
 )
 
 args = parser.parse_args()

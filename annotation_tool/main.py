@@ -76,14 +76,29 @@ from depthai_utils import *
 #
 # Running script:
 # python main.py -vid videos/22-center-1.mp4
-#
-# TO-DOs:
-# - poner por pantalla validación entre lo que muestra el vídeo y lo que se anotó
-# - poner el porcentaje por pantalla
-# - añadir ruta al modelo para poder elegirlo
+
+
 
 class Main(DepthAI):
-    def __init__(self, file=None, camera=False, record=False, annotate=False, play=False):
+
+    play = False
+    check = False
+    annotate = False
+    output = None
+    model = "models/stress_classifier_v2.blob"
+
+    def __init__(self, file=None, camera=False, record=False, annotate=False, play=False, check=False, model=None):
+        self.check = check
+        if model and model is not None:
+            if os.path.isfile(model):
+                self.model = model
+                print("Loaded new model: " + str(self.model))
+            else:
+                print("Invalid model: " + str(model))
+                print("Loaded default model: " + str(self.model))
+        else:
+            print("Loaded default model: " + str(self.model))
+
         if not camera:
             self.filename = os.path.splitext(os.path.basename(file))[0]
             match = re.match(r"([0-9]+)\-([a-z]+)\-([0-9]+)", self.filename, re.I)
@@ -99,7 +114,6 @@ class Main(DepthAI):
         self.cam_size = (720, 1280)
         super(Main, self).__init__(file, camera)
         self.emo_frame = Queue()
-        self.output = None
         if record:
             fourcc = cv2.VideoWriter_fourcc(*'xvid')
             self.output = cv2.VideoWriter(self.filename + '.avi', fourcc, 20.0, (1920, 1080))
@@ -114,17 +128,22 @@ class Main(DepthAI):
                 (Path(__file__).parent / Path(f'dataset/{label}')).mkdir(parents=True, exist_ok=True)
             self.current_frame = 0
             self.text_file = open("data.csv", "a+")
-        if play:
+        if play or check:
             self.annotate = False
             self.start = False
             self.classes = [ "non_stressed", "stressed" ]
             self.play = True
-            with open("data.csv", "r") as f:
-                self.saved_text_file = [ line.rstrip() for line in f if line.startswith(self.prefix) ]
-            self.current_annotation_idx = 0
-            self.current_annotation = [ int(i[-6:]) for i in self.saved_text_file[self.current_annotation_idx].split(",") ]
+            if os.path.isfile("data.csv"):
+                with open("data.csv", "r") as f:
+                    self.saved_text_file = [ line.rstrip() for line in f if line.startswith(self.prefix) ]
+                self.current_annotation_idx = 0
+                self.current_annotation = [int(i[-6:]) for i in
+                                           self.saved_text_file[self.current_annotation_idx].split(",")]
+                self.max_annotation = len(self.saved_text_file) - 1
+            else:
+                self.current_annotation = None
+
             self.current_frame = 0
-            self.max_annotation = len(self.saved_text_file) - 1
 
         self.last_frames = deque()
 
@@ -144,7 +163,7 @@ class Main(DepthAI):
 
     def create_nns(self):
         self.create_nn("models/face-detection-retail-0004.blob", "face")
-        self.create_nn("models/stress_classifier_v2.blob", "emo")
+        self.create_nn(self.model, "emo")
 
     def start_nns(self):
         self.face_in = self.device.getInputQueue("face_in")
@@ -187,69 +206,80 @@ class Main(DepthAI):
             bbox = self.face_coords[0]
             self.draw_bbox(bbox, (10, 245, 10))
 
-        if hasattr(self, 'annotate'):
-            if self.annotate and self.face_num > 0:
-                timestamp = int(time.time() * 10000)
-                det_frame = self.frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-                image_format = self.prefix + "{:06d}".format(self.current_frame)
-                cropped_path = f'dataset/{self.classes[self.current_class]}/{image_format}.jpg'
-                cv2.imwrite(cropped_path, det_frame)
-                self.text_file.write(str(image_format) + "," + str(self.current_class) + "\r\n")
+        if self.annotate and self.face_num > 0:
+            timestamp = int(time.time() * 10000)
+            det_frame = self.frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+            image_format = self.prefix + "{:06d}".format(self.current_frame)
+            cropped_path = f'dataset/{self.classes[self.current_class]}/{image_format}.jpg'
+            cv2.imwrite(cropped_path, det_frame)
+            self.text_file.write(str(image_format) + "," + str(self.current_class) + "\r\n")
 
         return True
 
     def run_emo(self):
-        for i in range(self.face_num):
-            emo_frame = self.emo_frame.get()
-            emo = ["non-stress", "stress", "sad", "surprise", "anger"]
-            nn_data = run_nn(
-                self.emo_in,
-                self.emo_nn,
-                {"prob": to_planar(emo_frame, (224, 224))[0]},
-            )
-            if nn_data is None:
-                return
-            out = to_nn_result(nn_data)
-            # print(out)
-            emo_r = emo[out[0] > 0.5]
+        emo_frame = self.emo_frame.get()
+        emo = [ "non-stress", "stress" ]
+        nn_data = run_nn(
+            self.emo_in,
+            self.emo_nn,
+            {"prob": to_planar(emo_frame, (224, 224))[0]},
+        )
+        if nn_data is None:
+            return
+        out = to_nn_result(nn_data)
+        # print(out)
+        emo_r = emo[float(out[0]) > 0.5]
 
-            self.last_frames.append(emo_r)
-            if len(self.last_frames) > 50:
-                self.last_frames.popleft()
-            emo_count = [ self.last_frames.count(emo[i]) for i in range(5) ]
-            top_emo = emo[emo_count.index(max(emo_count))]
-            top_emo = emo_r
+        self.last_frames.append(emo_r)
+        if len(self.last_frames) > 50:
+            self.last_frames.popleft()
+        emo_count = [ self.last_frames.count(emo[i]) for i in range(len(emo)) ]
+        top_emo = emo[emo_count.index(max(emo_count))]
+        top_emo = emo_r
 
+        self.put_text(
+            top_emo,
+            (self.face_coords[0][0], self.face_coords[0][1] + 80),
+            (0, 0, 255),
+        )
+
+        if self.check:
             self.put_text(
-                top_emo,
-                (self.face_coords[i][0], self.face_coords[i][1] + 80),
+                "Prob. stress: " + str(round(out[0] * 100, 2)) + "%",
+                (10, 160),
+                (0, 0, 255),
+            )
+        else:
+            self.put_text(
+                "Prob. stress: " + str(round(out[0] * 100, 2)) + "%",
+                (10, 80),
                 (0, 0, 255),
             )
 
-            if self.output is not None:
-                self.output.write(self.debug_frame)
+        if self.output is not None:
+            self.output.write(self.debug_frame)
 
     def parse_fun(self):
         face_success = self.run_face()
         if face_success:
-            if hasattr(self, 'annotate'):
+            if self.annotate:
                 if self.annotate:
                     if self.start:
                         self.annotate_video()
                     if not self.start:
                         self.start = True
-            elif not hasattr(self, 'play'):
+            elif not self.play or self.check:
                 self.run_emo()
-        if hasattr(self, 'play'):
+        if self.play or self.check:
             if self.play:
                 current_annotation = self.check_annotation_and_next()
                 if current_annotation is not None:
                     self.put_text(
-                        "Saved annotation: " + self.classes[current_annotation],
+                        "Annotation: " + self.classes[current_annotation],
                         (10, 80),
                         (0, 0, 255),
                     )
-        if hasattr(self, 'play') or hasattr(self, 'annotate'):
+        if self.play or self.check or self.annotate:
             self.current_frame += 1
 
     def annotate_video(self):
@@ -272,16 +302,16 @@ class Main(DepthAI):
         )
 
     def __del__(self):
-        if hasattr(self, 'output') and self.output is not None:
+        if self.output is not None:
             self.output.release()
-        if hasattr(self, 'annotate'):
+        if self.annotate:
             if self.annotate and self.text_file is not None:
                 self.text_file.close()
 
 
 if __name__ == "__main__":
     if args.video:
-        Main(file=args.video, annotate=args.annotate, play=args.play).run()
+        Main(file=args.video, annotate=args.annotate, play=args.play, check=args.check, model=args.model).run()
     else:
-        Main(camera=args.camera).run()
+        Main(camera=args.camera, model=args.model).run()
 
