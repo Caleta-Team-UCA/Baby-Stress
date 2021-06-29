@@ -90,9 +90,7 @@ if args.camera and args.video:
 elif args.annotate and args.play:
     raise ValueError("Cannot annotate and play at the same time")
 elif args.camera is False and args.video is None:
-    raise ValueError(
-        "缺少推理源！使用 “ -cam” 在 DepthAI 摄像机上运行，或使用 “ -vid <path>” 在视频文件上运行"
-    )
+    raise ValueError("缺少推理源！使用 “ -cam” 在 DepthAI 摄像机上运行，或使用 “ -vid <path>” 在视频文件上运行")
 
 
 def wait_for_results(queue):
@@ -181,8 +179,10 @@ def restore_point(point, scale, top, left):
 
     return (np.array(point).reshape(-1, 2) - (left, top)) * scale
 
+
 def to_planar(arr: np.ndarray, shape: tuple) -> list:
     img = resize_padding(arr, shape[0], shape[1])
+
 
 def to_planar(arr: np.ndarray, shape: tuple):
     img, scale, top, left = resize_padding(arr, shape[0], shape[1])
@@ -310,10 +310,7 @@ def draw_3d_axis(image, head_pose, origin, size=50):
     x1 = size * (np.cos(yaw) * np.cos(roll)) + origin[0]
     y1 = (
         size
-        * (
-            np.cos(pitch) * np.sin(roll)
-            + np.cos(roll) * np.sin(pitch) * np.sin(yaw)
-        )
+        * (np.cos(pitch) * np.sin(roll) + np.cos(roll) * np.sin(pitch) * np.sin(yaw))
         + origin[1]
     )
     cv2.line(image, (origin[0], origin[1]), (int(x1), int(y1)), (0, 0, 255), 3)
@@ -322,10 +319,7 @@ def draw_3d_axis(image, head_pose, origin, size=50):
     x2 = size * (-np.cos(yaw) * np.sin(roll)) + origin[0]
     y2 = (
         size
-        * (
-            -np.cos(pitch) * np.cos(roll)
-            - np.sin(pitch) * np.sin(yaw) * np.sin(roll)
-        )
+        * (-np.cos(pitch) * np.cos(roll) - np.sin(pitch) * np.sin(yaw) * np.sin(roll))
         + origin[1]
     )
     cv2.line(image, (origin[0], origin[1]), (int(x2), int(y2)), (0, 255, 0), 3)
@@ -371,9 +365,7 @@ def cosine_distance(a, b):
     :return: 余弦相似度
     """
     if a.shape != b.shape:
-        raise RuntimeError(
-            "array {} shape not match {}".format(a.shape, b.shape)
-        )
+        raise RuntimeError("array {} shape not match {}".format(a.shape, b.shape))
     if a.ndim == 1:
         # 操作是求向量的范式，默认是 L2 范式，等同于求向量的欧式距离
         a_norm = np.linalg.norm(a)
@@ -427,9 +419,7 @@ def decode_boxes(raw_boxes, anchors, shape, num_keypoints):
 
     for k in range(num_keypoints):
         offset = 4 + k * 2
-        keypoint_x = (
-            raw_boxes[..., offset] / x_scale * anchors[:, 2] + anchors[:, 0]
-        )
+        keypoint_x = raw_boxes[..., offset] / x_scale * anchors[:, 2] + anchors[:, 0]
         keypoint_y = (
             raw_boxes[..., offset + 1] / y_scale * anchors[:, 3] + anchors[:, 1]
         )
@@ -439,9 +429,7 @@ def decode_boxes(raw_boxes, anchors, shape, num_keypoints):
     return boxes
 
 
-def raw_to_detections(
-    raw_box_tensor, raw_score_tensor, anchors_, shape, num_keypoints
-):
+def raw_to_detections(raw_box_tensor, raw_score_tensor, anchors_, shape, num_keypoints):
     """
 
     This function converts these two "raw" tensors into proper detections.
@@ -459,9 +447,7 @@ def raw_to_detections(
     :param anchors_: 锚点框
     :return:
     """
-    detection_boxes = decode_boxes(
-        raw_box_tensor, anchors_, shape, num_keypoints
-    )
+    detection_boxes = decode_boxes(raw_box_tensor, anchors_, shape, num_keypoints)
     detection_scores = sigmoid(raw_score_tensor).squeeze(-1)
     output_detections = []
     for i in range(raw_box_tensor.shape[0]):

@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .utils import *
 from imutils.video import FPS
+from depthai import LogLevel
 
 
 class DepthAI:
@@ -86,6 +87,8 @@ class DepthAI:
         if not found:
             raise RuntimeError("Device not found")
         self.device = depthai.Device(self.pipeline, device_info)
+        self.device.setLogLevel(LogLevel.DEBUG)
+
         print("Starting pipeline...")
         self.device.startPipeline()
 
