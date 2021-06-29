@@ -1,5 +1,5 @@
 {
-    "name": "Resnet",
+    "name": "Mobilenet",
     "method": "bayes",
     "metric": {
         "name": "val_F1",

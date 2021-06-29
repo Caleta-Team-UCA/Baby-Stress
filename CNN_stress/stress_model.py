@@ -30,7 +30,7 @@ from tensorflow.keras.metrics import (
 )
 from tensorflow.keras.backend import epsilon
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.models import Sequential, load_model, clone_model
+from tensorflow.keras.models import Sequential, load_model, clone_model, save_model
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam, SGD, Adamax, RMSprop
 
@@ -267,7 +267,7 @@ class CNN:
             Path to the file where the model will be saved. Must be `.h5` extension.
         """
 
-        self.MODEL.save(model_path)
+        save_model(self.MODEL, model_path, save_format="h5")
 
     def load(
         self,
