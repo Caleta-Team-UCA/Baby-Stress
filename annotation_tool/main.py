@@ -82,15 +82,20 @@ from depthai_utils import *
 # - poner el porcentaje por pantalla
 # - añadir ruta al modelo para poder elegirlo
 
+
 class Main(DepthAI):
-    def __init__(self, file=None, camera=False, record=False, annotate=False, play=False):
+    def __init__(
+        self, file=None, camera=False, record=False, annotate=False, play=False
+    ):
         if not camera:
             self.filename = os.path.splitext(os.path.basename(file))[0]
             match = re.match(r"([0-9]+)\-([a-z]+)\-([0-9]+)", self.filename, re.I)
             try:
                 if match:
                     items = match.groups()
-                    self.prefix = "{:02d}".format(int(items[0])) + "{:02d}".format(int(items[2]))
+                    self.prefix = "{:02d}".format(int(items[0])) + "{:02d}".format(
+                        int(items[2])
+                    )
                 else:
                     raise ValueError("Video format must be number-string-number")
             except:
@@ -101,28 +106,37 @@ class Main(DepthAI):
         self.emo_frame = Queue()
         self.output = None
         if record:
-            fourcc = cv2.VideoWriter_fourcc(*'xvid')
-            self.output = cv2.VideoWriter(self.filename + '.avi', fourcc, 20.0, (1920, 1080))
+            fourcc = cv2.VideoWriter_fourcc(*"xvid")
+            self.output = cv2.VideoWriter(
+                self.filename + ".avi", fourcc, 20.0, (1920, 1080)
+            )
         if annotate:
             self.annotate = True
             self.start = False
-            self.classes = [ "non_stressed", "stressed" ]
+            self.classes = ["non_stressed", "stressed"]
             self.current_class = 0
             os.system(f"sed -i '/^{self.prefix}/d' data.csv")
             for label in self.classes:
                 os.system(f"rm -r dataset/{label}/{self.prefix}* || true")
-                (Path(__file__).parent / Path(f'dataset/{label}')).mkdir(parents=True, exist_ok=True)
+                (Path(__file__).parent / Path(f"dataset/{label}")).mkdir(
+                    parents=True, exist_ok=True
+                )
             self.current_frame = 0
             self.text_file = open("data.csv", "a+")
         if play:
             self.annotate = False
             self.start = False
-            self.classes = [ "non_stressed", "stressed" ]
+            self.classes = ["non_stressed", "stressed"]
             self.play = True
             with open("data.csv", "r") as f:
-                self.saved_text_file = [ line.rstrip() for line in f if line.startswith(self.prefix) ]
+                self.saved_text_file = [
+                    line.rstrip() for line in f if line.startswith(self.prefix)
+                ]
             self.current_annotation_idx = 0
-            self.current_annotation = [ int(i[-6:]) for i in self.saved_text_file[self.current_annotation_idx].split(",") ]
+            self.current_annotation = [
+                int(i[-6:])
+                for i in self.saved_text_file[self.current_annotation_idx].split(",")
+            ]
             self.current_frame = 0
             self.max_annotation = len(self.saved_text_file) - 1
 
@@ -138,13 +152,16 @@ class Main(DepthAI):
         elif self.current_frame == self.current_annotation[0]:
             current_class = self.current_annotation[1]
             self.current_annotation_idx += 1
-            self.current_annotation = [ int(i[-6:]) for i in self.saved_text_file[self.current_annotation_idx].split(",") ]
+            self.current_annotation = [
+                int(i[-6:])
+                for i in self.saved_text_file[self.current_annotation_idx].split(",")
+            ]
             return current_class
         return None
 
     def create_nns(self):
         self.create_nn("models/face-detection-retail-0004.blob", "face")
-        self.create_nn("models/stress_classifier_v2.blob", "emo")
+        self.create_nn("models/stress_classifier_v3.blob", "emo")
 
     def start_nns(self):
         self.face_in = self.device.getInputQueue("face_in")
@@ -187,14 +204,18 @@ class Main(DepthAI):
             bbox = self.face_coords[0]
             self.draw_bbox(bbox, (10, 245, 10))
 
-        if hasattr(self, 'annotate'):
+        if hasattr(self, "annotate"):
             if self.annotate and self.face_num > 0:
                 timestamp = int(time.time() * 10000)
-                det_frame = self.frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+                det_frame = self.frame[bbox[1] : bbox[3], bbox[0] : bbox[2]]
                 image_format = self.prefix + "{:06d}".format(self.current_frame)
-                cropped_path = f'dataset/{self.classes[self.current_class]}/{image_format}.jpg'
+                cropped_path = (
+                    f"dataset/{self.classes[self.current_class]}/{image_format}.jpg"
+                )
                 cv2.imwrite(cropped_path, det_frame)
-                self.text_file.write(str(image_format) + "," + str(self.current_class) + "\r\n")
+                self.text_file.write(
+                    str(image_format) + "," + str(self.current_class) + "\r\n"
+                )
 
         return True
 
@@ -216,7 +237,7 @@ class Main(DepthAI):
             self.last_frames.append(emo_r)
             if len(self.last_frames) > 50:
                 self.last_frames.popleft()
-            emo_count = [ self.last_frames.count(emo[i]) for i in range(5) ]
+            emo_count = [self.last_frames.count(emo[i]) for i in range(5)]
             top_emo = emo[emo_count.index(max(emo_count))]
             top_emo = emo_r
 
@@ -232,15 +253,15 @@ class Main(DepthAI):
     def parse_fun(self):
         face_success = self.run_face()
         if face_success:
-            if hasattr(self, 'annotate'):
+            if hasattr(self, "annotate"):
                 if self.annotate:
                     if self.start:
                         self.annotate_video()
                     if not self.start:
                         self.start = True
-            elif not hasattr(self, 'play'):
+            elif not hasattr(self, "play"):
                 self.run_emo()
-        if hasattr(self, 'play'):
+        if hasattr(self, "play"):
             if self.play:
                 current_annotation = self.check_annotation_and_next()
                 if current_annotation is not None:
@@ -249,15 +270,15 @@ class Main(DepthAI):
                         (10, 80),
                         (0, 0, 255),
                     )
-        if hasattr(self, 'play') or hasattr(self, 'annotate'):
+        if hasattr(self, "play") or hasattr(self, "annotate"):
             self.current_frame += 1
 
     def annotate_video(self):
         key = cv2.waitKey(1)
 
-        if key == ord('n'):
+        if key == ord("n"):
             self.current_class = 0
-        elif key == ord('s'):
+        elif key == ord("s"):
             self.current_class = 1
         elif key == ord("q"):
             cv2.destroyAllWindows()
@@ -272,9 +293,9 @@ class Main(DepthAI):
         )
 
     def __del__(self):
-        if hasattr(self, 'output') and self.output is not None:
+        if hasattr(self, "output") and self.output is not None:
             self.output.release()
-        if hasattr(self, 'annotate'):
+        if hasattr(self, "annotate"):
             if self.annotate and self.text_file is not None:
                 self.text_file.close()
 
@@ -284,4 +305,3 @@ if __name__ == "__main__":
         Main(file=args.video, annotate=args.annotate, play=args.play).run()
     else:
         Main(camera=args.camera).run()
-
