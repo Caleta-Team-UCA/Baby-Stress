@@ -1,22 +1,23 @@
 import toml
 from pathlib import Path
-from typing import Optional, Union, Iterable
+from typing import Callable, Optional, Union, Iterable
 import blobconverter
 import shutil
+import json
 
-from tensorflow.keras.applications.resnet import (
+import wandb
+
+from tensorflow.keras.applications import (
+    MobileNet,
+    MobileNetV2,
+    NASNetMobile,
+    ResNet50V2,
+    ResNet101V2,
+    ResNet152V2,
     ResNet50,
     ResNet101,
     ResNet152,
 )
-
-from tensorflow.keras.applications.resnet_v2 import (
-    ResNet50V2,
-    ResNet101V2,
-    ResNet152V2,
-)
-
-from tensorflow.keras.applications.mobilenet import MobileNet
 
 from tensorflow.keras.preprocessing import image_dataset_from_directory
 from tensorflow.keras.metrics import (
@@ -27,8 +28,9 @@ from tensorflow.keras.metrics import (
 )
 from tensorflow.keras.backend import epsilon
 from tensorflow.keras.layers import Dense
-from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import Sequential, load_model, clone_model, save_model
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.optimizers import Adam, SGD, Adamax, RMSprop
 
 from tensorflow.keras.models import load_model
 import typer
@@ -59,6 +61,8 @@ MODEL_TYPES = {
     "ResNet101V2": ResNet101V2,
     "ResNet152V2": ResNet152V2,
     "MobileNet": MobileNet,
+    "MobileNetV2": MobileNetV2,
+    "NASNetMobile": NASNetMobile,
 }
 
 
@@ -99,17 +103,19 @@ class CNN:
         train_images_folder: Union[Path, str],
         val_images_folder: Union[Path, str],
         labels_names: Union[str, Iterable[str]] = "inferred",
-        n_labels: Optional[int] = None,
+        n_labels: Optional[int] = 2,
         color_mode: str = "rgb",
-        image_size: Iterable[int] = (256, 256),
+        image_size: Iterable[int] = (224, 224),
         shuffle: bool = True,
         batch_size: int = 32,
-        optimizer: str = "adam",
+        optimizer_name: str = "Adam",
+        learning_rate: float = 1e-5,
         epochs: int = 10,
         metrics: Iterable[str] = ("F1", "binary_accuracy", "precision", "recall"),
         early_stopping_metric: str = "val_F1",
         early_stopping_patience: str = 5,
         early_stopping_mode: str = "max",
+        callbacks: list[Callable] = [],
     ):
         if n_labels is None:
             assert (
@@ -117,14 +123,20 @@ class CNN:
             ), f"If labels are inferred `n_labels` must be passed."
             n_labels = len(labels_names)
 
+        layer_names = [layer.name for layer in self.MODEL.layers]
+
         if n_labels > 2:
             label_mode = "int"
             loss_function = "sparse_categorical_crossentropy"
-            self.MODEL.add(Dense(n_labels, activation="softmax"))
+            if "final_layer" not in layer_names:
+                self.MODEL.add(
+                    Dense(n_labels, activation="softmax", name="final_layer")
+                )
         else:
             label_mode = "binary"
             loss_function = "binary_crossentropy"
-            self.MODEL.add(Dense(1, activation="sigmoid"))
+            if "final_layer" not in layer_names:
+                self.MODEL.add(Dense(1, activation="sigmoid", name="final_layer"))
 
         train_dataset = image_dataset_from_directory(
             train_images_folder,
@@ -161,6 +173,23 @@ class CNN:
             elif m == "F1":
                 metrics_list.append(F1)
 
+        if optimizer_name == "Adam":
+            optimizer = Adam(
+                learning_rate=learning_rate,
+            )
+        elif optimizer_name == "SGD":
+            optimizer = SGD(
+                learning_rate=learning_rate,
+            )
+        elif optimizer_name == "Adamax":
+            optimizer = Adamax(
+                learning_rate=learning_rate,
+            )
+        elif optimizer_name == "RMSprop":
+            optimizer = RMSprop(
+                learning_rate=learning_rate,
+            )
+
         self.MODEL.compile(
             optimizer=optimizer, loss=loss_function, metrics=metrics_list
         )
@@ -172,28 +201,78 @@ class CNN:
             restore_best_weights=True,
         )
 
-        self.MODEL.fit(
+        callbacks.append(early_stopping_monitor)
+
+        training_history = self.MODEL.fit(
             train_dataset,
             validation_data=validation_dataset,
             epochs=epochs,
-            callbacks=[early_stopping_monitor],
+            callbacks=[callbacks],
+        )
+
+    def _train_wandb(self):
+        aux_model = clone_model(self.MODEL)
+
+        run = wandb.init(name=f"run_{self.run_number}")
+        config = dict(run.config)
+
+        keras_callback = wandb.keras.WandbCallback()
+
+        self.train(
+            train_images_folder=self.train_images_folder,
+            val_images_folder=self.val_images_folder,
+            callbacks=[keras_callback],
+            **config,
+        )
+
+        self.save(f"{self.wandb_runs_dir}/{run.name}.h5")
+
+        self.MODEL = aux_model
+
+        shutil.rmtree("/home/users/ucadatalab_group/javierj/Baby-Stress/wandb")
+
+        self.run_number += 1
+
+    def hiperparameters_search_wandb(
+        self,
+        wandb_project: str,
+        number_runs: int,
+        wandb_runs_dir: str,
+        hiperparams_search_config: dict[str, str],
+        train_images_folder: Union[Path, str],
+        val_images_folder: Union[Path, str],
+    ):
+        self.run_number = 0
+
+        self.wandb_runs_dir = wandb_runs_dir
+
+        self.train_images_folder = train_images_folder
+        self.val_images_folder = val_images_folder
+
+        wandb.login()
+        sweep_id = wandb.sweep(hiperparams_search_config, project=wandb_project)
+        wandb.agent(
+            sweep_id=sweep_id,
+            project=wandb_project,
+            function=self._train_wandb,
+            count=number_runs,
         )
 
     def save(self, model_path: Union[str, Path]):
-        """Save the architecture and the weights of the model.
+        """Save the weights of the model.
 
         Parameters
         ----------
         model_path : Union[str, Path]
-            Path to the folder where the model will be saved.
+            Path to the file where the model will be saved. Must be `.h5` extension.
         """
 
-        self.MODEL.save(model_path)
+        save_model(self.MODEL, model_path, save_format="h5")
 
     def load(
         self,
         model_path: Union[str, Path] = "imagenet",
-        base_model: Optional[str] = "ResNet50v2",
+        base_model: Optional[str] = "ResNet50V2",
     ):
         """Load the architecture and the weights of a model.
 
@@ -251,7 +330,7 @@ class CNN:
             frozen_pb=f"{path_out_folder}/frozen_graph.pb",
             data_type="FP16",
             shaves=5,
-            version = blobconverter.Versions.v2020_1,
+            version=blobconverter.Versions.v2021_1,
             optimizer_params=[
                 "--reverse_input_channels",
                 "--input_shape=[1,224,224,3]",
@@ -265,10 +344,25 @@ def main(config_path: Optional[str] = "./CNN_stress/config.toml"):
 
     config_dict = toml.load(config_path)
 
+    hyperparam_path = config_dict["wandb"]["hyperparam_search_config_path"]
+
+    with open(hyperparam_path, "r") as f:
+        hyperparam_config = json.load(f)
+
     model = CNN(**config_dict["load"])
-    model.train(**config_dict["training"])
-    model.save(**config_dict["save"])
-    model.load(config_dict["save"]["model_path"], base_model=None)
+    model.hiperparameters_search_wandb(
+        "Baby_stress_CNN",
+        20,
+        config_dict["wandb"]["save_dir"],
+        hyperparam_config,
+        config_dict["wandb"]["train_images_folder"],
+        config_dict["wandb"]["val_images_folder"],
+    )
+
+    # model = CNN(**config_dict["load"])
+    # model.train(**config_dict["training"])
+    # model.save(**config_dict["save"])
+    # model.load(config_dict["save"]["model_path"], base_model=None)
 
 
 if __name__ == "__main__":
