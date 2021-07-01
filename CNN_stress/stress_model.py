@@ -330,7 +330,7 @@ class CNN:
             frozen_pb=f"{path_out_folder}/frozen_graph.pb",
             data_type="FP16",
             shaves=5,
-            version=blobconverter.Versions.v2020_1,
+            version=blobconverter.Versions.v2021_1,
             optimizer_params=[
                 "--reverse_input_channels",
                 "--input_shape=[1,224,224,3]",
