@@ -1,5 +1,5 @@
 {
-    "name": "Mobilenet",
+    "name": "NASNetMobile",
     "method": "bayes",
     "metric": {
         "name": "val_F1",

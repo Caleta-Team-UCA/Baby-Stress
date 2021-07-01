@@ -7,19 +7,17 @@ import json
 
 import wandb
 
-from tensorflow.keras.applications.resnet import (
+from tensorflow.keras.applications import (
+    MobileNet,
+    MobileNetV2,
+    NASNetMobile,
+    ResNet50V2,
+    ResNet101V2,
+    ResNet152V2,
     ResNet50,
     ResNet101,
     ResNet152,
 )
-
-from tensorflow.keras.applications.resnet_v2 import (
-    ResNet50V2,
-    ResNet101V2,
-    ResNet152V2,
-)
-
-from tensorflow.keras.applications.mobilenet import MobileNet
 
 from tensorflow.keras.preprocessing import image_dataset_from_directory
 from tensorflow.keras.metrics import (
@@ -63,6 +61,8 @@ MODEL_TYPES = {
     "ResNet101V2": ResNet101V2,
     "ResNet152V2": ResNet152V2,
     "MobileNet": MobileNet,
+    "MobileNetV2": MobileNetV2,
+    "NASNetMobile": NASNetMobile,
 }
 
 

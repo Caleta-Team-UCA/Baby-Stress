@@ -1,6 +1,6 @@
 [load]
 model_path = "imagenet"
-base_model = "MobileNet"
+base_model = "NASNetMobile"
 
 [save]
 model_path = ".Models/resnet_imagenet.h5"
